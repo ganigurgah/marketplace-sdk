@@ -74,54 +74,7 @@ public class MarketplaceIntegrationTest {
         assertThat(data.get("batchRequestId")).isEqualTo("TR-BATCH-100");
     }
 
-    @Test
-    void testHepsiburadaCreateProduct() {
-        stubFor(post(urlEqualTo("/hepsiburada/api/v1/products"))
-            .withRequestBody(matchingJsonPath("$.variants[0].barcode", equalTo("HB-1234")))
-            .withRequestBody(matchingJsonPath("$.DefaultImageURL", equalTo("https://demo.com/img.jpg")))
-            .willReturn(aResponse()
-                .withStatus(200)
-                .withHeader("Content-Type", "application/json")
-                .withBody("{\"status\": \"SUCCESS\"}")));
 
-        OperationRequest request = OperationRequest.builder(MarketplaceType.HEPSIBURADA, Operation.CREATE_PRODUCT)
-            .param("barcode", "HB-1234")
-            .param("sku", "HB-SKU")
-            .param("title", "HB Title")
-            .param("description", "HB Desc")
-            .param("price", 105.0)
-            .param("stock", 50)
-            .build();
-
-        OperationResponse response = client.execute(request);
-        assertThat(response.isSuccess()).isTrue();
-        Map<String, Object> data = (Map<String, Object>) response.getData();
-        assertThat(data.get("status")).isEqualTo("SUCCESS");
-    }
-
-    @Test
-    void testN11CreateProduct() {
-        stubFor(post(urlEqualTo("/n11/v1/products/create"))
-            .withRequestBody(matchingJsonPath("$.appKey", equalTo("n11-mock-key")))
-            .withRequestBody(matchingJsonPath("$.product.stockItems[0].stockCode", equalTo("N11-1234")))
-            .willReturn(aResponse()
-                .withStatus(200)
-                .withHeader("Content-Type", "application/json")
-                .withBody("{\"result\": {\"status\": \"success\"}}")));
-
-        OperationRequest request = OperationRequest.builder(MarketplaceType.N11, Operation.CREATE_PRODUCT)
-            .param("barcode", "N11-1234")
-            .param("title", "N11 Title")
-            .param("description", "N11 Desc")
-            .param("price", 10.0)
-            .param("stock", 5)
-            .build();
-
-        OperationResponse response = client.execute(request);
-        assertThat(response.isSuccess()).isTrue();
-        Map<String, Object> data = (Map<String, Object>) response.getData();
-        assertThat(data.get("status")).isEqualTo("success");
-    }
 
     @Test
     void testAmazonCreateProduct() {

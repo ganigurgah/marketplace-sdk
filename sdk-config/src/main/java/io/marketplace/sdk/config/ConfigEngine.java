@@ -48,11 +48,15 @@ public class ConfigEngine {
             MarketplaceType type = MarketplaceType.fromString(config.getExtra("marketplace"));
 
             MarketplaceAdapter adapter = adapterRegistry.createAdapter(type);
-            adapter.initialize(config);
-            router.register(adapter);
-            loadedConfigs.put(type, config);
+            if (adapter != null) {
+                adapter.initialize(config);
+                router.register(adapter);
+                loadedConfigs.put(type, config);
 
-            log.info("Loaded config for {} from {}", type, yamlFile.getFileName());
+                log.info("Loaded config for {} from {}", type, yamlFile.getFileName());
+            } else {
+                log.warn("Adapter for {} not found, skipping config load from {}", type, yamlFile.getFileName());
+            }
         } catch (Exception e) {
             log.error("Failed to load config: {}", yamlFile, e);
         }

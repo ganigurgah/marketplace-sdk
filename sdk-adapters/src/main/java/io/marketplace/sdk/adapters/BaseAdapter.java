@@ -47,10 +47,20 @@ public abstract class BaseAdapter implements MarketplaceAdapter {
             rateLimiter.penalize(penalty);
         }
 
+        Object data = null;
+        if (httpResponse.getBody() != null && !httpResponse.getBody().isBlank()) {
+            try {
+                data = new com.fasterxml.jackson.databind.ObjectMapper().readValue(httpResponse.getBody(), java.util.Map.class);
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+
         return OperationResponse.builder()
             .success(httpResponse.getStatusCode() >= 200 && httpResponse.getStatusCode() < 300)
             .httpStatus(httpResponse.getStatusCode())
             .rawResponse(httpResponse.getBody())
+            .data(data)
             .build();
     }
 

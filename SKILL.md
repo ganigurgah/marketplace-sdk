@@ -100,7 +100,7 @@ marketplace-sdk/                          ← root (BOM)
 │       ├── RateLimiter.java
 │       ├── TokenBucketRateLimiter.java
 │       └── RateLimiterConfig.java
-├── sdk-webhook/                          ← MODÜL 5: Webhook karşılama
+├── sdk-webhook/                          ← MODÜL 5: Webhook karşılama (ENTERPRISE)
 │   └── src/main/java/io/marketplace/sdk/webhook/
 │       ├── WebhookHandler.java           ← SPI
 │       ├── WebhookEvent.java             ← Normalize edilmiş event modeli
@@ -108,7 +108,7 @@ marketplace-sdk/                          ← root (BOM)
 │       └── handlers/
 │           ├── TrendyolWebhookHandler.java
 │           └── HepsiburadaWebhookHandler.java
-├── sdk-admin-ui/                         ← MODÜL 6: Web dashboard
+├── sdk-admin-ui/                         ← MODÜL 6: Web dashboard (ENTERPRISE)
 │   └── src/main/java/io/marketplace/sdk/admin/
 ├── sdk-test-support/                     ← MODÜL 7: WireMock fixtures & helpers
 │   └── src/main/java/io/marketplace/sdk/test/

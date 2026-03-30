@@ -33,16 +33,25 @@ public class YamlConfigLoader {
         extra = new java.util.HashMap<>(extra);
         extra.put("marketplace", raw.get("marketplace"));
 
+        // sellerId'yi extra'ya da ekle; bu sayede {sellerId} path parametresi
+        // credentials'dan otomatik çözümlenir (extra her zaman önce kontrol edilir)
+        if (credentials.getSellerId() != null && !extra.containsKey("sellerId")) {
+            extra.put("sellerId", credentials.getSellerId());
+        }
+
         return new AdapterConfig(baseUrl, credentials, operations, extra, timeoutSeconds, maxRetries);
     }
 
     private Credentials parseCredentials(Map<String, Object> auth, Map<String, Object> credRaw) {
         if (credRaw == null) return Credentials.builder().build();
+        // sellerId önce credentials bloğundan okunur; yoksa supplierId'ye bakılır (geriye dönük uyum)
+        String sellerId = (String) credRaw.get("sellerId");
+        if (sellerId == null) sellerId = (String) credRaw.get("supplierId");
         return Credentials.builder()
             .apiKey((String) credRaw.get("apiKey"))
             .apiSecret((String) credRaw.get("apiSecret"))
             .supplierId((String) credRaw.get("supplierId"))
-            .sellerId((String) credRaw.get("sellerId"))
+            .sellerId(sellerId)
             .accessToken((String) credRaw.get("accessToken"))
             .refreshToken((String) credRaw.get("refreshToken"))
             .build();

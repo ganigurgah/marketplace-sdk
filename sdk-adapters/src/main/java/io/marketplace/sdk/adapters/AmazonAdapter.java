@@ -2,14 +2,21 @@ package io.marketplace.sdk.adapters;
 
 import io.marketplace.sdk.core.model.MarketplaceType;
 import io.marketplace.sdk.core.operation.Operation;
-import io.marketplace.sdk.core.operation.OperationRequest;
 import io.marketplace.sdk.core.spi.AdapterConfig;
 import io.marketplace.sdk.core.spi.TokenProvider;
-import io.marketplace.sdk.core.http.HttpRequest;
 
-import java.util.Map;
 import java.util.Set;
 
+/**
+ * Amazon Turkey (SP-API) pazaryeri adaptörü.
+ *
+ * Auth: OAuth2 Bearer token (LWA — Login With Amazon)
+ *       Token ~1 saatte bir yenilenir; AmazonTokenProvider bu işi yönetir.
+ * Tüm endpoint tanımları amazon.yaml'da bulunur.
+ *
+ * 401 alındığında AmazonTokenProvider.invalidateToken() çağrılır,
+ * bir sonraki istekte token otomatik yenilenir.
+ */
 public class AmazonAdapter extends BaseAdapter {
 
     @Override
@@ -19,38 +26,28 @@ public class AmazonAdapter extends BaseAdapter {
 
     @Override
     public Set<Operation> supportedOperations() {
-        return Set.of(Operation.GET_ORDERS, Operation.CREATE_PRODUCT);
+        return Set.of(
+            Operation.GET_ORDERS,
+            Operation.GET_ORDER_DETAIL,
+            Operation.GET_PRODUCTS,
+            Operation.CREATE_PRODUCT,
+            Operation.UPDATE_PRODUCT,
+            Operation.UPDATE_STOCK,
+            Operation.UPDATE_PRICE,
+            Operation.GET_CATEGORIES,
+            Operation.GET_SETTLEMENTS
+        );
     }
 
+    /**
+     * Amazon SP-API: x-amz-access-token header.
+     * AmazonTokenProvider token süresini takip eder ve gerektiğinde LWA
+     * üzerinden yeniler (Bölüm 16 — SKILL.md).
+     */
     @Override
     protected TokenProvider initializeTokenProvider(AdapterConfig config) {
         AmazonTokenProvider provider = new AmazonTokenProvider();
         provider.initialize(config);
         return provider;
-    }
-
-    @Override
-    protected HttpRequest createHttpRequest(OperationRequest request) {
-        if (request.getOperation() == Operation.CREATE_PRODUCT) {
-            String sku = (String) request.getParams().get("sku");
-            String url = config.getBaseUrl() + "/listings/2021-08-01/items/A-SELLER/" + sku; 
-            HttpRequest.Builder builder = HttpRequest.builder("PUT", url);
-            tokenProvider.getAuthHeaders().forEach(builder::header);
-            builder.header("Content-Type", "application/json");
-
-            try {
-                java.util.Map<String, Object> attr = java.util.Map.of("item_name", java.util.List.of(java.util.Map.of("value", request.getParams().get("title"))));
-                java.util.Map<String, Object> bodyMap = java.util.Map.of("productType", "SHIRT", "attributes", attr);
-                String body = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(bodyMap);
-                builder.body(body);
-            } catch (Exception e) {
-                // Ignore parse errors
-            }
-            return builder.build();
-        }
-
-        HttpRequest.Builder builder = HttpRequest.builder("GET", config.getBaseUrl() + "/orders/v0/orders");
-        tokenProvider.getAuthHeaders().forEach(builder::header);
-        return builder.build();
     }
 }

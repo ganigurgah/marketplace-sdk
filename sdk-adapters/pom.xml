@@ -19,6 +19,10 @@
         </dependency>
         <dependency>
             <groupId>io.marketplace</groupId>
+            <artifactId>sdk-config</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.marketplace</groupId>
             <artifactId>sdk-ratelimit</artifactId>
             <version>${project.version}</version>
         </dependency>

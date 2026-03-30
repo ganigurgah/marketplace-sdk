@@ -3,22 +3,27 @@ package io.marketplace.sdk.config;
 import io.marketplace.sdk.core.MarketplaceClient;
 import io.marketplace.sdk.core.MarketplaceSDK;
 import io.marketplace.sdk.core.async.AsyncMarketplaceClient;
-import io.marketplace.sdk.core.operation.OperationRouter;
+import io.marketplace.sdk.core.model.LogEntry;
 import io.marketplace.sdk.core.model.MarketplaceType;
 import io.marketplace.sdk.core.operation.Operation;
 import io.marketplace.sdk.core.operation.OperationRequest;
 import io.marketplace.sdk.core.operation.OperationResponse;
+import io.marketplace.sdk.core.operation.OperationRouter;
+import io.marketplace.sdk.core.spi.AdapterConfig;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class MarketplaceSDKImpl implements MarketplaceSDK {
-    private final ConfigEngine configEngine;
-    private final OperationRouter router;
-    private final java.util.concurrent.ConcurrentLinkedDeque<io.marketplace.sdk.core.model.LogEntry> logs = new java.util.concurrent.ConcurrentLinkedDeque<>();
 
-    public MarketplaceSDKImpl(ConfigEngine configEngine, OperationRouter router) {
-        this.configEngine = configEngine;
+    private final ConfigEngine primaryEngine;
+    private final OperationRouter router;
+    private final ConcurrentLinkedDeque<LogEntry> logs = new ConcurrentLinkedDeque<>();
+
+    public MarketplaceSDKImpl(ConfigEngine primaryEngine, OperationRouter router) {
+        this.primaryEngine = primaryEngine;
         this.router = router;
     }
 
@@ -31,32 +36,35 @@ public class MarketplaceSDKImpl implements MarketplaceSDK {
                 OperationResponse response = router.route(request);
                 long duration = System.currentTimeMillis() - start;
 
-                // Log ekle (maksimum 50 adet)
-                logs.addFirst(new io.marketplace.sdk.core.model.LogEntry(
+                logs.addFirst(new LogEntry(
                     java.time.LocalDateTime.now().toString(),
                     request.getMarketplace(),
                     request.getOperation().name(),
                     response.getHttpStatus(),
                     duration
                 ));
-                if (logs.size() > 50) logs.removeLast();
+                if (logs.size() > 100) logs.removeLast();
 
                 return response;
             }
+
             @Override
             public boolean supports(MarketplaceType marketplace, Operation operation) {
-                if(!router.hasAdapter(marketplace)) return false;
+                if (!router.hasAdapter(marketplace)) return false;
                 return router.getAdapter(marketplace).supportedOperations().contains(operation);
             }
+
             @Override
             public boolean healthCheck(MarketplaceType marketplace) {
-                if(!router.hasAdapter(marketplace)) return false;
+                if (!router.hasAdapter(marketplace)) return false;
                 return router.getAdapter(marketplace).healthCheck();
             }
+
             @Override
             public void reloadConfig(MarketplaceType marketplace) {
-                configEngine.reload(marketplace);
+                primaryEngine.reload(marketplace);
             }
+
             @Override
             public void shutdown() {
                 MarketplaceSDKImpl.this.shutdown();
@@ -68,7 +76,6 @@ public class MarketplaceSDKImpl implements MarketplaceSDK {
     public AsyncMarketplaceClient asyncClient() {
         MarketplaceClient syncClient = client();
         return new AsyncMarketplaceClient() {
-            // Asenkron implementasyonların stubları (gelecekte multi-threading uygulanacak)
             @Override
             public CompletableFuture<OperationResponse> executeAsync(OperationRequest request) {
                 return CompletableFuture.supplyAsync(() -> syncClient.execute(request));
@@ -76,9 +83,15 @@ public class MarketplaceSDKImpl implements MarketplaceSDK {
 
             @Override
             public CompletableFuture<List<OperationResponse>> executeAll(List<OperationRequest> requests) {
-                return CompletableFuture.completedFuture(
-                    requests.stream().map(syncClient::execute).toList()
-                );
+                // Gerçek paralel yürütme — her istek ayrı thread'de
+                List<CompletableFuture<OperationResponse>> futures = requests.stream()
+                    .map(r -> CompletableFuture.supplyAsync(() -> syncClient.execute(r)))
+                    .toList();
+
+                return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                    .thenApply(v -> futures.stream()
+                        .map(CompletableFuture::join)
+                        .toList());
             }
 
             @Override public OperationResponse execute(OperationRequest r) { return syncClient.execute(r); }
@@ -90,30 +103,30 @@ public class MarketplaceSDKImpl implements MarketplaceSDK {
     }
 
     @Override
-    public java.util.List<io.marketplace.sdk.core.model.LogEntry> getRecentLogs() {
-        return new java.util.ArrayList<>(logs);
+    public List<LogEntry> getRecentLogs() {
+        return List.copyOf(logs);
     }
 
     @Override
-    public java.util.Map<io.marketplace.sdk.core.model.MarketplaceType, io.marketplace.sdk.core.spi.AdapterConfig> getConfigurations() {
-        return configEngine.getAllConfigs();
+    public Map<MarketplaceType, AdapterConfig> getConfigurations() {
+        return primaryEngine.getAllConfigs();
     }
 
     @Override
-    public String getRawConfig(io.marketplace.sdk.core.model.MarketplaceType type) {
-        return configEngine.getRawConfig(type);
+    public String getRawConfig(MarketplaceType type) {
+        return primaryEngine.getRawConfig(type);
     }
 
     @Override
-    public void updateConfig(io.marketplace.sdk.core.model.MarketplaceType type, String content) {
-        configEngine.saveRawConfig(type, content);
+    public void updateConfig(MarketplaceType type, String content) {
+        primaryEngine.saveRawConfig(type, content);
     }
 
     @Override
     public void shutdown() {
-        configEngine.stopHotReload();
-        configEngine.getAllConfigs().keySet().forEach(type -> {
-            if(router.hasAdapter(type)) {
+        primaryEngine.stopHotReload();
+        primaryEngine.getAllConfigs().keySet().forEach(type -> {
+            if (router.hasAdapter(type)) {
                 router.getAdapter(type).shutdown();
             }
         });

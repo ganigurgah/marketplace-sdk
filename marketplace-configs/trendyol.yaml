@@ -1,40 +1,215 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Trendyol Adapter Konfigürasyonu
+#
+# PROD baseUrl : https://apigw.trendyol.com
+# STAGE baseUrl: https://stageapigw.trendyol.com
+#
+# Auth: Basic Auth = Base64(apiKey:apiSecret)
+# User-Agent: {sellerId} - SelfIntegration  (Trendyol zorunlu tutuyor)
+#
+# Path değişkeni: {sellerId} → credentials.sellerId değerinden otomatik doldurulur
+# URL veya sellerId değiştiğinde sadece bu dosyayı güncellemek yeterlidir.
+# ──────────────────────────────────────────────────────────────────────────────
+
 marketplace: TRENDYOL
-baseUrl: http://localhost:8080/trendyol
+baseUrl: http://localhost:8080
 timeoutSeconds: 30
 maxRetries: 3
-rateLimiter:
-  permitsPerSecond: 10
+
+rateLimit:
+  permitsPerSecond: 10    # Trendyol limiti ~600/dk
+  maxBurst: 20
+
 credentials:
-  type: BEARER
-  supplierId: "12345"
-  apiKey: "mock-key"
-  apiSecret: "mock-secret"
+  sellerId:  "12345"
+  apiKey:    "API_KEY_BURAYA"
+  apiSecret: "API_SECRET_BURAYA"
+
 operations:
-  CREATE_PRODUCT:
+
+  # ── Sipariş ─────────────────────────────────────────────────────────────────
+
+  getOrders:
+    method: GET
+    path: /integration/order/sellers/{sellerId}/orders
+    queryParams:
+      - name: status
+        type: STRING
+        required: false
+      - name: startDate
+        type: LONG
+        required: false
+      - name: endDate
+        type: LONG
+        required: false
+      - name: page
+        type: INTEGER
+        required: false
+        defaultValue: "0"
+      - name: size
+        type: INTEGER
+        required: false
+        defaultValue: "50"
+    responseMapping:
+      orderList:   "$.content[*]"
+      totalPages:  "$.totalPages"
+      currentPage: "$.page"
+      orderId:     "$.orderNumber"
+      orderStatus: "$.status"
+      totalAmount: "$.totalPrice"
+      orderDate:   "$.orderDate"
+
+  getOrderDetail:
+    method: GET
+    path: /integration/order/sellers/{sellerId}/orders/{orderId}
+    responseMapping:
+      orderId:     "$.orderNumber"
+      orderStatus: "$.status"
+      lines:       "$.lines[*]"
+
+  updateOrderStatus:
+    method: PUT
+    path: /integration/order/sellers/{sellerId}/orders/{orderId}/status
+    requestMapping:
+      status: "status"
+      reason: "reason"
+    responseMapping:
+      success: "$.success"
+
+  # ── Ürün ─────────────────────────────────────────────────────────────────────
+  #
+  # Trendyol, tek bir POST ile birden fazla ürün göndermeyi destekler.
+  # "items" array içinde 1 veya N ürün gönderilebilir.
+  #
+  # Tek ürün:   { "items": [ { ...ürün alanları... } ] }
+  # Çok ürün:   { "items": [ { ...ürün1... }, { ...ürün2... } ] }
+  #
+  # Her iki kullanım da aynı endpoint ve aynı YAML operasyonunu kullanır.
+  # Yanıt: { "batchRequestId": "..." }  → getBatchRequestResult ile takip edilir.
+
+  createProduct:
     method: POST
-    path: /integration/product/sellers/12345/products
+    path: /integration/product/sellers/{sellerId}/products
     contentType: application/json
     requestTemplate: |
       {
-        "items": [{
-          "barcode": "${barcode}",
-          "title": "${title}",
-          "productMainId": "${supplierId}",
-          "brandId": 123,
-          "categoryId": 456,
-          "quantity": ${stock},
-          "stockCode": "${sku}",
-          "dimensionalWeight": 1.0,
-          "description": "${description}",
-          "currencyType": "TRY",
-          "listPrice": ${price},
-          "salePrice": ${price},
-          "vatRate": 18,
-          "cargoCompanyId": 10,
-          "images": ${images},
-          "attributes": ${attributes},
-          "deliveryDuration": 3
-        }]
+        "items": ${items}
       }
     responseMapping:
       batchRequestId: "$.batchRequestId"
+
+  updateProduct:
+    method: PUT
+    path: /integration/product/sellers/{sellerId}/products
+    contentType: application/json
+    requestTemplate: |
+      {
+        "items": ${items}
+      }
+    responseMapping:
+      batchRequestId: "$.batchRequestId"
+
+  deleteProduct:
+    method: DELETE
+    path: /integration/product/sellers/{sellerId}/products
+    requestTemplate: |
+      {
+        "items": ${items}
+      }
+    responseMapping:
+      batchRequestId: "$.batchRequestId"
+
+  # ── Stok & Fiyat ────────────────────────────────────────────────────────────
+
+  updateStock:
+    method: POST
+    path: /integration/inventory/sellers/{sellerId}/products/price-and-inventory
+    contentType: application/json
+    requestTemplate: |
+      {
+        "items": ${items}
+      }
+    responseMapping:
+      batchRequestId: "$.batchRequestId"
+
+  updatePrice:
+    method: POST
+    path: /integration/inventory/sellers/{sellerId}/products/price-and-inventory
+    contentType: application/json
+    requestTemplate: |
+      {
+        "items": ${items}
+      }
+    responseMapping:
+      batchRequestId: "$.batchRequestId"
+
+  # ── Batch İzleme ────────────────────────────────────────────────────────────
+
+  getBatchRequestResult:
+    method: GET
+    path: /integration/product/sellers/{sellerId}/products/batch-requests/{batchRequestId}
+    responseMapping:
+      status:      "$.status"
+      items:       "$.items[*]"
+      failedItems: "$.items[?(@.status == 'FAILED')]"
+
+  # ── Katalog ─────────────────────────────────────────────────────────────────
+
+  getCategories:
+    method: GET
+    path: /integration/product/product-categories
+    cache:
+      ttlSeconds: 86400
+      maxSize: 10
+    responseMapping:
+      categories:   "$[*]"
+      categoryId:   "$.id"
+      categoryName: "$.name"
+      parentId:     "$.parentId"
+
+  getBrands:
+    method: GET
+    path: /integration/product/brands
+    queryParams:
+      - name: name
+        type: STRING
+        required: false
+      - name: page
+        type: INTEGER
+        required: false
+        defaultValue: "0"
+    cache:
+      ttlSeconds: 3600
+      maxSize: 100
+    responseMapping:
+      brands:    "$[*]"
+      brandId:   "$.id"
+      brandName: "$.name"
+
+  getAttributes:
+    method: GET
+    path: /integration/product/product-categories/{categoryId}/attributes
+    cache:
+      ttlSeconds: 86400
+      maxSize: 200
+    responseMapping:
+      attributes:      "$.categoryAttributes[*]"
+      attributeId:     "$.attribute.id"
+      attributeName:   "$.attribute.name"
+      required:        "$.required"
+      allowCustom:     "$.allowCustom"
+      attributeValues: "$.attributeValues[*]"
+
+  # ── Kargo ───────────────────────────────────────────────────────────────────
+
+  getShipmentProviders:
+    method: GET
+    path: /integration/order/sellers/{sellerId}/cargo-companies
+    cache:
+      ttlSeconds: 3600
+      maxSize: 5
+    responseMapping:
+      providers:    "$[*]"
+      providerId:   "$.id"
+      providerName: "$.name"
+      providerCode: "$.code"

@@ -1,30 +1,118 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Hepsiburada Adapter Konfigürasyonu
+# Auth: Basic Auth = Base64(merchantId:apiPassword)
+# ──────────────────────────────────────────────────────────────────────────────
+
 marketplace: HEPSIBURADA
-baseUrl: http://localhost:8080/hepsiburada
+baseUrl: https://mpop.hepsiburada.com
 timeoutSeconds: 30
 maxRetries: 3
+
+rateLimit:
+  permitsPerSecond: 5
+  maxBurst: 10
+
 credentials:
-  type: BASIC
-  sellerId: "HB-SELLER"
-  apiKey: "hb-mock-key"
-  apiSecret: "hb-mock-secret"
+  sellerId: "MERCHANT_ID_BURAYA"
+  apiSecret: "API_PASSWORD_BURAYA"
+
+extra:
+  merchantId: "MERCHANT_ID_BURAYA"
+
 operations:
-  CREATE_PRODUCT:
+
+  getOrders:
+    method: GET
+    path: /order/api/orders
+    queryParams:
+      - name: status
+        type: STRING
+        required: false
+      - name: offset
+        type: INTEGER
+        required: false
+        defaultValue: "0"
+      - name: limit
+        type: INTEGER
+        required: false
+        defaultValue: "50"
+    responseMapping:
+      orderList:   "$.data[*]"
+      orderId:     "$.id"
+      orderStatus: "$.status"
+      totalAmount: "$.totalFinalPrice"
+      orderDate:   "$.orderDate"
+
+  getOrderDetail:
+    method: GET
+    path: /order/api/orders/{orderId}
+    responseMapping:
+      orderId:     "$.id"
+      orderStatus: "$.status"
+      lines:       "$.orderLines[*]"
+
+  createProduct:
     method: POST
-    path: /api/v1/products
+    path: /listings/merchantid/{merchantId}/listings
     contentType: application/json
     requestTemplate: |
       {
-        "spu": "${sku}",
-        "brand": "DemoBrand",
-        "category": "General",
-        "DefaultImageURL": "https://demo.com/img.jpg",
-        "name": "${title}",
-        "description": "${description}",
-        "variants": [{
-          "barcode": "${barcode}",
-          "price": ${price},
-          "stock": ${stock}
+        "merchant-sku":     "${stockCode}",
+        "product-name":     "${title}",
+        "available-stock":  ${quantity},
+        "price":            ${salePrice},
+        "listing-allowed":  true
+      }
+    responseMapping:
+      success: "$.success"
+
+  updateStock:
+    method: POST
+    path: /listings/merchantid/{merchantId}/listings/update
+    contentType: application/json
+    requestTemplate: |
+      {
+        "listings": [{
+          "hbSku":           "${barcode}",
+          "availableStock":  ${quantity},
+          "price":           ${salePrice}
         }]
       }
     responseMapping:
-      status: "$.status"
+      success: "$.success"
+
+  updatePrice:
+    method: POST
+    path: /listings/merchantid/{merchantId}/listings/update
+    contentType: application/json
+    requestTemplate: |
+      {
+        "listings": [{
+          "hbSku":  "${barcode}",
+          "price":  ${salePrice}
+        }]
+      }
+    responseMapping:
+      success: "$.success"
+
+  getCategories:
+    method: GET
+    path: /product/api/categories/get-all-categories
+    cache:
+      ttlSeconds: 86400
+      maxSize: 10
+    responseMapping:
+      categories:   "$.categories[*]"
+      categoryId:   "$.id"
+      categoryName: "$.name"
+
+  getShipmentProviders:
+    method: GET
+    path: /order/api/carriers
+    cache:
+      ttlSeconds: 3600
+      maxSize: 5
+    responseMapping:
+      providers:    "$[*]"
+      providerId:   "$.id"
+      providerName: "$.name"

@@ -12,6 +12,17 @@ import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * YAML dosyalarını yükler, adapter'ları başlatır ve router'a kaydeder.
+ *
+ * instanceKey desteği ile aynı pazaryerinin birden fazla satıcı hesabı
+ * ayrı ayrı yüklenebilir:
+ *
+ *   new ConfigEngine(Path.of("configs/seller-a"), router, registry, "seller-a")
+ *   new ConfigEngine(Path.of("configs/seller-b"), router, registry, "seller-b")
+ *
+ * instanceKey = "default" ise eski davranış korunur (geriye dönük uyumlu).
+ */
 public class ConfigEngine {
 
     private static final Logger log = LoggerFactory.getLogger(ConfigEngine.class);
@@ -20,18 +31,30 @@ public class ConfigEngine {
     private final OperationRouter router;
     private final YamlConfigLoader loader;
     private final AdapterRegistry adapterRegistry;
+    private final String instanceKey;
     private final Map<MarketplaceType, AdapterConfig> loadedConfigs = new ConcurrentHashMap<>();
     private HotReloadWatcher watcher;
 
+    /** Geriye dönük uyumlu constructor — instanceKey = "default". */
     public ConfigEngine(Path configDir, OperationRouter router, AdapterRegistry adapterRegistry) {
+        this(configDir, router, adapterRegistry, OperationRouter.DEFAULT_INSTANCE);
+    }
+
+    /** Multiple instance constructor. */
+    public ConfigEngine(Path configDir, OperationRouter router,
+                        AdapterRegistry adapterRegistry, String instanceKey) {
         this.configDir = configDir;
         this.router = router;
         this.loader = new YamlConfigLoader();
         this.adapterRegistry = adapterRegistry;
+        this.instanceKey = instanceKey != null ? instanceKey : OperationRouter.DEFAULT_INSTANCE;
     }
 
     public void loadAll() {
-        if (!Files.exists(configDir)) return;
+        if (!Files.exists(configDir)) {
+            log.warn("Config directory does not exist: {}", configDir);
+            return;
+        }
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(configDir, "*.yaml")) {
             for (Path yamlFile : stream) {
                 loadSingle(yamlFile);
@@ -45,30 +68,38 @@ public class ConfigEngine {
     public void loadSingle(Path yamlFile) {
         try {
             AdapterConfig config = loader.load(yamlFile);
-            MarketplaceType type = MarketplaceType.fromString(config.getExtra("marketplace"));
+            String marketplaceRaw = config.getExtra("marketplace");
+            if (marketplaceRaw == null) {
+                log.warn("YAML file {} is missing 'marketplace' field, skipping.", yamlFile.getFileName());
+                return;
+            }
 
+            MarketplaceType type = MarketplaceType.fromString(marketplaceRaw);
             MarketplaceAdapter adapter = adapterRegistry.createAdapter(type);
+
             if (adapter != null) {
                 adapter.initialize(config);
-                router.register(adapter);
+                router.register(instanceKey, adapter);   // ← instanceKey ile kayıt
                 loadedConfigs.put(type, config);
-
-                log.info("Loaded config for {} from {}", type, yamlFile.getFileName());
+                log.info("Loaded config for {} (instance='{}') from {}",
+                    type, instanceKey, yamlFile.getFileName());
             } else {
-                log.warn("Adapter for {} not found, skipping config load from {}", type, yamlFile.getFileName());
+                log.warn("No adapter found for marketplace '{}', skipping {}",
+                    type, yamlFile.getFileName());
             }
         } catch (Exception e) {
-            log.error("Failed to load config: {}", yamlFile, e);
+            log.error("Failed to load config from {}: {}", yamlFile, e.getMessage(), e);
         }
     }
 
     public void reload(MarketplaceType type) {
-        Path yamlFile = configDir.resolve(type.name().toLowerCase().replace("_", "-") + ".yaml");
+        String filename = type.name().toLowerCase().replace("_", "-") + ".yaml";
+        Path yamlFile = configDir.resolve(filename);
         if (!Files.exists(yamlFile)) {
             throw new ConfigNotFoundException(type.name());
         }
         loadSingle(yamlFile);
-        log.info("Hot-reloaded config for {}", type);
+        log.info("Hot-reloaded config for {} (instance='{}')", type, instanceKey);
     }
 
     public void startHotReload() {
@@ -101,24 +132,26 @@ public class ConfigEngine {
     }
 
     public String getRawConfig(MarketplaceType type) {
-        Path yamlFile = configDir.resolve(type.name().toLowerCase().replace("_", "-") + ".yaml");
+        String filename = type.name().toLowerCase().replace("_", "-") + ".yaml";
+        Path yamlFile = configDir.resolve(filename);
         try {
             return Files.readString(yamlFile);
         } catch (Exception e) {
-            log.error("Failed to read raw config for {}: {}", type, yamlFile, e);
-            throw new RuntimeException("Config read failed", e);
+            throw new RuntimeException("Config read failed for " + type + ": " + e.getMessage(), e);
         }
     }
 
     public void saveRawConfig(MarketplaceType type, String content) {
-        Path yamlFile = configDir.resolve(type.name().toLowerCase().replace("_", "-") + ".yaml");
+        String filename = type.name().toLowerCase().replace("_", "-") + ".yaml";
+        Path yamlFile = configDir.resolve(filename);
         try {
             Files.writeString(yamlFile, content);
-            reload(type); // Hemen yeniden yükle
-            log.info("Saved and reloaded raw config for {}", type);
+            reload(type);
+            log.info("Saved and reloaded raw config for {} (instance='{}')", type, instanceKey);
         } catch (Exception e) {
-            log.error("Failed to save raw config for {}: {}", type, yamlFile, e);
-            throw new RuntimeException("Config save failed", e);
+            throw new RuntimeException("Config save failed for " + type + ": " + e.getMessage(), e);
         }
     }
+
+    public String getInstanceKey() { return instanceKey; }
 }

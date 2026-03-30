@@ -2,15 +2,30 @@ package io.marketplace.sdk.adapters;
 
 import io.marketplace.sdk.core.model.MarketplaceType;
 import io.marketplace.sdk.core.operation.Operation;
-import io.marketplace.sdk.core.operation.OperationRequest;
 import io.marketplace.sdk.core.spi.AdapterConfig;
 import io.marketplace.sdk.core.spi.TokenProvider;
-import io.marketplace.sdk.core.http.HttpRequest;
 
 import java.util.Base64;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Trendyol pazaryeri adaptörü.
+ *
+ * Auth     : Basic Auth — Authorization: Basic Base64(apiKey:apiSecret)
+ * User-Agent: {sellerId} - SelfIntegration  (Trendyol zorunlu tutuyor)
+ *
+ * Path parametresi {sellerId} → credentials.sellerId değerinden otomatik doldurulur.
+ * Endpoint URL veya sellerId değiştiğinde sadece trendyol.yaml güncellenir;
+ * bu dosyaya dokunulmaz.
+ *
+ * Multi-product desteği:
+ *   Trendyol API'si "items" array ile tek veya çok ürün kabul eder.
+ *   createProduct operasyonu hem tek hem çok ürünü destekler.
+ *   Kullanım:
+ *     .param("items", List.of(product1, product2))   // çok ürün
+ *     .param("items", List.of(product1))              // tek ürün
+ */
 public class TrendyolAdapter extends BaseAdapter {
 
     @Override
@@ -20,58 +35,70 @@ public class TrendyolAdapter extends BaseAdapter {
 
     @Override
     public Set<Operation> supportedOperations() {
-        return Set.of(Operation.GET_ORDERS, Operation.GET_CATEGORIES, Operation.CREATE_PRODUCT);
+        return Set.of(
+            Operation.GET_ORDERS,
+            Operation.GET_ORDER_DETAIL,
+            Operation.UPDATE_ORDER_STATUS,
+            Operation.GET_PRODUCTS,
+            Operation.CREATE_PRODUCT,
+            Operation.UPDATE_PRODUCT,
+            Operation.DELETE_PRODUCT,
+            Operation.UPDATE_STOCK,
+            Operation.UPDATE_PRICE,
+            Operation.GET_CATEGORIES,
+            Operation.GET_BRANDS,
+            Operation.GET_ATTRIBUTES,
+            Operation.GET_SHIPMENT_PROVIDERS,
+            Operation.GET_BATCH_REQUEST_RESULT
+        );
     }
 
+    /**
+     * Trendyol Basic Auth:
+     *   Authorization: Basic Base64(apiKey:apiSecret)
+     *   User-Agent:    {sellerId} - SelfIntegration
+     *
+     * sellerId önce credentials'dan, yoksa extra'dan alınır.
+     */
     @Override
     protected TokenProvider initializeTokenProvider(AdapterConfig config) {
         return new TokenProvider() {
-            @Override
-            public void initialize(AdapterConfig c) {}
+            @Override public void initialize(AdapterConfig c) { }
+
             @Override
             public Map<String, String> getAuthHeaders() {
-                String authString = config.getCredentials().getApiKey() + ":" + config.getCredentials().getApiSecret();
-                String encodedAuth = Base64.getEncoder().encodeToString(authString.getBytes());
-                return Map.of("Authorization", "Basic " + encodedAuth);
+                String apiKey    = config.getCredentials().getApiKey();
+                String apiSecret = config.getCredentials().getApiSecret();
+
+                // sellerId: credentials > extra
+                String sellerId = config.getCredentials().getSellerId();
+                if (sellerId == null) sellerId = config.getExtra("sellerId");
+                if (sellerId == null) sellerId = "unknown";
+
+                String encoded = Base64.getEncoder()
+                    .encodeToString((apiKey + ":" + apiSecret).getBytes());
+
+                return Map.of(
+                    "Authorization", "Basic " + encoded,
+                    "User-Agent",    sellerId + " - SelfIntegration"
+                );
             }
-            @Override
-            public void invalidateToken() {}
+
+            @Override public void invalidateToken() { /* Basic Auth — no-op */ }
         };
     }
 
+    /**
+     * {sellerId} path parametresi için ek çözümleme.
+     * credentials.sellerId → extra.sellerId sırasıyla kontrol edilir.
+     */
     @Override
-    protected HttpRequest createHttpRequest(OperationRequest request) {
-        if (request.getOperation() == Operation.CREATE_PRODUCT) {
-            String url = config.getBaseUrl() + "/integration/product/sellers/" + config.getCredentials().getSupplierId() + "/products";
-            HttpRequest.Builder builder = HttpRequest.builder("POST", url);
-            tokenProvider.getAuthHeaders().forEach(builder::header);
-            builder.header("Content-Type", "application/json");
-
-            try {
-                java.util.Map<String, Object> item = new java.util.HashMap<>();
-                item.put("barcode", request.getParams().get("barcode"));
-                item.put("stockCode", request.getParams().get("sku"));
-                item.put("title", request.getParams().get("title"));
-                item.put("description", request.getParams().get("description"));
-                item.put("attributes", request.getParams().get("attributes"));
-                item.put("listPrice", request.getParams().get("price"));
-                item.put("salePrice", request.getParams().get("price"));
-                item.put("quantity", request.getParams().get("stock"));
-                item.put("images", request.getParams().get("images"));
-                
-                String body = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(
-                   java.util.Map.of("items", java.util.List.of(item))
-                );
-                builder.body(body);
-            } catch (Exception e) {
-                // Ignore parse errors
-            }
-            return builder.build();
+    protected Object resolveCredential(String paramName) {
+        if ("sellerid".equals(paramName.toLowerCase())) {
+            String fromCreds = config.getCredentials().getSellerId();
+            if (fromCreds != null) return fromCreds;
+            return config.getExtra("sellerId");
         }
-
-        String url = config.getBaseUrl() + "/suppliers/" + config.getCredentials().getSupplierId() + "/orders";
-        HttpRequest.Builder builder = HttpRequest.builder("GET", url);
-        tokenProvider.getAuthHeaders().forEach(builder::header);
-        return builder.build();
+        return super.resolveCredential(paramName);
     }
 }

@@ -1,6 +1,7 @@
 package io.marketplace.sdk.core.operation;
 
 import io.marketplace.sdk.core.model.MarketplaceType;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -37,8 +38,28 @@ public class OperationRequest {
             this.operation = operation;
         }
 
+        /** Tekli parametre ekler. */
         public Builder param(String key, Object value) {
             this.params.put(key, value);
+            return this;
+        }
+
+        /** Tüm parametreleri map olarak set eder (mevcut params'ı temizler). */
+        public Builder params(Map<String, Object> params) {
+            this.params.clear();
+            if (params != null) this.params.putAll(params);
+            return this;
+        }
+
+        /**
+         * Multiple instance desteği: hangi adapter instance'ının kullanılacağını belirtir.
+         * Belirtilmezse "default" instance kullanılır.
+         *
+         * Kullanım:
+         *   .instanceKey("seller-A")
+         */
+        public Builder instanceKey(String instanceKey) {
+            this.params.put("instanceKey", instanceKey);
             return this;
         }
 

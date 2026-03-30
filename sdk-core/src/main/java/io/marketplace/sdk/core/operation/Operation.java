@@ -2,8 +2,11 @@ package io.marketplace.sdk.core.operation;
 
 /**
  * SDK'nın desteklediği tüm operasyonlar.
- * Yeni bir operasyon eklendiğinde buraya eklenir,
- * ilgili adapter'ların execute() metodu güncellenir.
+ *
+ * Yeni operasyon eklendiğinde:
+ *  1. Buraya ekle
+ *  2. İlgili adapter'ın supportedOperations() setine ekle
+ *  3. İlgili pazaryerinin YAML'ına operation bloğu ekle
  */
 public enum Operation {
     // Sipariş
@@ -36,5 +39,14 @@ public enum Operation {
 
     // Finans
     GET_SETTLEMENTS,
-    GET_INVOICES
+    GET_INVOICES,
+
+    /**
+     * Trendyol batch işlem sonucu sorgulama.
+     * createProduct, updateProduct, updateStock gibi operasyonlar
+     * batchRequestId döner — bu ID ile işlem sonucu sorgulanır.
+     * YAML key: getBatchRequestResult
+     * Path: /integration/product/sellers/{supplierId}/products/batch-requests/{batchRequestId}
+     */
+    GET_BATCH_REQUEST_RESULT
 }

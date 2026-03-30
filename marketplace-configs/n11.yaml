@@ -1,30 +1,130 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# N11 Adapter Konfigürasyonu
+# Auth: Header tabanlı API Key (appKey + appSecret)
+# ──────────────────────────────────────────────────────────────────────────────
+
 marketplace: N11
-baseUrl: http://localhost:8080/n11
+baseUrl: https://api.n11.com/ws
 timeoutSeconds: 30
 maxRetries: 3
+
+rateLimit:
+  permitsPerSecond: 5
+  maxBurst: 10
+
 credentials:
-  type: HEADER
-  supplierId: "N11-SELLER"
-  apiKey: "n11-mock-key"
-  apiSecret: "n11-mock-secret"
+  apiKey: "APP_KEY_BURAYA"
+  apiSecret: "APP_SECRET_BURAYA"
+
 operations:
-  CREATE_PRODUCT:
+
+  getOrders:
     method: POST
-    path: /v1/products/create
+    path: /orderService/orderList
     contentType: application/json
     requestTemplate: |
       {
-        "appKey": "n11-mock-key",
-        "appSecret": "n11-mock-secret",
-        "product": {
-          "title": "${title}",
-          "stockItems": [{
-            "stockCode": "${barcode}",
-            "quantity": ${stock}
-          }],
-          "price": ${price},
-          "description": "${description}"
+        "auth": {
+          "appKey":    "${appKey}",
+          "appSecret": "${appSecret}"
+        },
+        "pagingData": {
+          "currentPage": ${page},
+          "pageSize":    ${size}
+        },
+        "searchData": {
+          "status": "${status}"
         }
       }
     responseMapping:
-      status: "$.result.status"
+      orderList:   "$.result.orderList.order[*]"
+      orderId:     "$.id"
+      orderStatus: "$.status"
+      totalAmount: "$.totalAmount"
+
+  getOrderDetail:
+    method: POST
+    path: /orderService/orderDetail
+    contentType: application/json
+    requestTemplate: |
+      {
+        "auth":    {"appKey": "${appKey}", "appSecret": "${appSecret}"},
+        "orderId": "${orderId}"
+      }
+    responseMapping:
+      orderId:     "$.result.order.id"
+      orderStatus: "$.result.order.status"
+      lines:       "$.result.order.orderItemList.orderItem[*]"
+
+  createProduct:
+    method: POST
+    path: /productService/saveProduct
+    contentType: application/json
+    requestTemplate: |
+      {
+        "auth": {"appKey": "${appKey}", "appSecret": "${appSecret}"},
+        "product": {
+          "productSellerCode": "${stockCode}",
+          "title":             "${title}",
+          "description":       "${description}",
+          "category":          {"id": ${categoryId}},
+          "price":             ${salePrice},
+          "stockItems": {
+            "stockItem": [{
+              "quantity": ${quantity},
+              "sellerStockCode": "${stockCode}"
+            }]
+          }
+        }
+      }
+    responseMapping:
+      productId: "$.result.id"
+      success:   "$.result.success"
+
+  updateStock:
+    method: POST
+    path: /stockService/updateStockByStockSellerCode
+    contentType: application/json
+    requestTemplate: |
+      {
+        "auth":            {"appKey": "${appKey}", "appSecret": "${appSecret}"},
+        "stockItems": {
+          "stockItem": [{
+            "sellerStockCode": "${stockCode}",
+            "quantity":        ${quantity}
+          }]
+        }
+      }
+    responseMapping:
+      success: "$.result.success"
+
+  updatePrice:
+    method: POST
+    path: /productService/updateProductPriceByStockCode
+    contentType: application/json
+    requestTemplate: |
+      {
+        "auth":          {"appKey": "${appKey}", "appSecret": "${appSecret}"},
+        "stockItems": {
+          "stockItem": [{
+            "sellerStockCode": "${stockCode}",
+            "price":           ${salePrice}
+          }]
+        }
+      }
+    responseMapping:
+      success: "$.result.success"
+
+  getCategories:
+    method: POST
+    path: /categoryService/getTopLevelCategories
+    contentType: application/json
+    requestTemplate: |
+      {"auth": {"appKey": "${appKey}", "appSecret": "${appSecret}"}}
+    cache:
+      ttlSeconds: 86400
+      maxSize: 10
+    responseMapping:
+      categories:   "$.result.category[*]"
+      categoryId:   "$.id"
+      categoryName: "$.name"

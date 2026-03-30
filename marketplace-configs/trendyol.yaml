@@ -1,0 +1,40 @@
+marketplace: TRENDYOL
+baseUrl: http://localhost:8080/trendyol
+timeoutSeconds: 30
+maxRetries: 3
+rateLimiter:
+  permitsPerSecond: 10
+credentials:
+  type: BEARER
+  supplierId: "12345"
+  apiKey: "mock-key"
+  apiSecret: "mock-secret"
+operations:
+  CREATE_PRODUCT:
+    method: POST
+    path: /integration/product/sellers/12345/products
+    contentType: application/json
+    requestTemplate: |
+      {
+        "items": [{
+          "barcode": "${barcode}",
+          "title": "${title}",
+          "productMainId": "${supplierId}",
+          "brandId": 123,
+          "categoryId": 456,
+          "quantity": ${stock},
+          "stockCode": "${sku}",
+          "dimensionalWeight": 1.0,
+          "description": "${description}",
+          "currencyType": "TRY",
+          "listPrice": ${price},
+          "salePrice": ${price},
+          "vatRate": 18,
+          "cargoCompanyId": 10,
+          "images": ${images},
+          "attributes": ${attributes},
+          "deliveryDuration": 3
+        }]
+      }
+    responseMapping:
+      batchRequestId: "$.batchRequestId"

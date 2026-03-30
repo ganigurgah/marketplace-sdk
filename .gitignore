@@ -62,5 +62,5 @@ buildNumber.properties
 
 ### Custom Project Properties ###
 TEST_RESULTS/
-marketplace-configs/
+# marketplace-configs/
 *.yaml.bak

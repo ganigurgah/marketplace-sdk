@@ -1,0 +1,30 @@
+marketplace: HEPSIBURADA
+baseUrl: http://localhost:8080/hepsiburada
+timeoutSeconds: 30
+maxRetries: 3
+credentials:
+  type: BASIC
+  sellerId: "HB-SELLER"
+  apiKey: "hb-mock-key"
+  apiSecret: "hb-mock-secret"
+operations:
+  CREATE_PRODUCT:
+    method: POST
+    path: /api/v1/products
+    contentType: application/json
+    requestTemplate: |
+      {
+        "spu": "${sku}",
+        "brand": "DemoBrand",
+        "category": "General",
+        "DefaultImageURL": "https://demo.com/img.jpg",
+        "name": "${title}",
+        "description": "${description}",
+        "variants": [{
+          "barcode": "${barcode}",
+          "price": ${price},
+          "stock": ${stock}
+        }]
+      }
+    responseMapping:
+      status: "$.status"

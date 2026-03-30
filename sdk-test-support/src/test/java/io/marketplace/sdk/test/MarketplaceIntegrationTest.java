@@ -30,9 +30,9 @@ public class MarketplaceIntegrationTest {
         wireMockServer.start();
         WireMock.configureFor("localhost", 8080);
         
-        // Ensure that the ConfigEngine reads from TEST_RESULTS
+        // Ensure tests read config from the committed repository directory
         MarketplaceSDK sdk = MarketplaceSDK.builder()
-            .configDir("/home/gani/projects/marketplace/TEST_RESULTS")
+            .configDir("../marketplace-configs")
             .build();
         client = sdk.client();
     }

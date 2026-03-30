@@ -1,0 +1,26 @@
+marketplace: AMAZON_TR
+baseUrl: http://localhost:8080/amazon
+timeoutSeconds: 30
+maxRetries: 3
+credentials:
+  type: IAM
+  sellerId: "A-SELLER"
+  apiKey: "amazon-mock-key"
+  apiSecret: "amazon-mock-secret"
+operations:
+  CREATE_PRODUCT:
+    method: PUT
+    path: /listings/2021-08-01/items/A-SELLER/${sku}
+    contentType: application/json
+    requestTemplate: |
+      {
+        "productType": "SHIRT",
+        "attributes": {
+          "item_name": [{"value": "${title}", "language_tag": "tr_TR"}],
+          "brand": [{"value": "Generic Brand", "language_tag": "tr_TR"}],
+          "list_price": [{"value": ${price}, "currency": "TRY"}],
+          "fulfillment_availability": [{"quantity": ${stock}}]
+        }
+      }
+    responseMapping:
+      submissionId: "$.submissionId"

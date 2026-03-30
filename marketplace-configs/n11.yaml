@@ -1,0 +1,30 @@
+marketplace: N11
+baseUrl: http://localhost:8080/n11
+timeoutSeconds: 30
+maxRetries: 3
+credentials:
+  type: HEADER
+  supplierId: "N11-SELLER"
+  apiKey: "n11-mock-key"
+  apiSecret: "n11-mock-secret"
+operations:
+  CREATE_PRODUCT:
+    method: POST
+    path: /v1/products/create
+    contentType: application/json
+    requestTemplate: |
+      {
+        "appKey": "n11-mock-key",
+        "appSecret": "n11-mock-secret",
+        "product": {
+          "title": "${title}",
+          "stockItems": [{
+            "stockCode": "${barcode}",
+            "quantity": ${stock}
+          }],
+          "price": ${price},
+          "description": "${description}"
+        }
+      }
+    responseMapping:
+      status: "$.result.status"

@@ -8,7 +8,7 @@ API değişikliklerinde Java kodu yazmak zorunda kalmayın — sadece YAML'ı g�
 [![Maven](https://img.shields.io/badge/Maven-Multi--Module-blue?logo=apachemaven)](https://maven.apache.org/)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 [![Version](https://img.shields.io/badge/Version-2.0.0-purple)]()
-[![Build](https://img.shields.io/badge/Build-Passing-brightgreen)]()
+[![Build](https://github.com/ganigurgah/marketplace-sdk/actions/workflows/maven.yml/badge.svg)](https://github.com/ganigurgah/marketplace-sdk/actions/workflows/maven.yml)
 
 ---
 

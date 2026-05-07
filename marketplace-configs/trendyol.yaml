@@ -12,7 +12,7 @@
 # ──────────────────────────────────────────────────────────────────────────────
 
 marketplace: TRENDYOL
-baseUrl: http://localhost:8080
+baseUrl: https://apigw.trendyol.com
 timeoutSeconds: 30
 maxRetries: 3
 

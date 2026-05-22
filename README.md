@@ -439,6 +439,7 @@ PR açmadan önce:
 - [x] Hard-coded değer yok — tüm konfigürasyon YAML'da
 
 ---
+![visitors](https://visitor-badge.laobi.icu/badge?page_id=ganigurgah.marketplace-sdk&left_text=visitors)
 
 ## Lisans
 
